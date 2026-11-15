@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 
+if(POLICY CMP0091)
+  cmake_policy(SET CMP0091 NEW)
+endif()
+
 set(PROJECT_LANGUAGES C)
 
 if(DEFINED CMAKE_CXX_COMPILER)
@@ -78,6 +82,7 @@ option(WITH_XCB "Build with XCB support" ON)
 option(WITH_EXAMPLES "Build examples" ON)
 option(WITH_TESTS "Build tests" ON)
 option(WITH_QT "Build the Qt client example" ON)
+option(WITH_DESKTOP_SERVER "Build the localhost desktop-sharing shared library" OFF)
 
 
 if(WITH_ZLIB)
@@ -556,6 +561,10 @@ endif(NOT LIBVNCSERVER_LIBRARIES)
 SET_TARGET_PROPERTIES(${LIBVNCSERVER_LIBRARIES}
 		PROPERTIES SOVERSION "${VERSION_SO}" VERSION "${LibVNCServer_VERSION}" C_STANDARD 90
 )
+
+if(WITH_DESKTOP_SERVER)
+  add_subdirectory(src/desktop)
+endif()
 
 # EXAMPLES
 set(LIBVNCSERVER_EXAMPLES

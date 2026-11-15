@@ -1,0 +1,103 @@
+name: Desktop shared libraries
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            name: linux-x86_64
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
+          - os: macos-15-intel
+            name: macos-x86_64
+          - os: macos-15
+            name: macos-arm64
+          - os: windows-2022
+            name: windows-x86_64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb1-dev libxcb-xtest0-dev xvfb xauth
+      - name: Test release packaging and validation
+        run: python -m unittest discover -s test -p 'test_desktop_release.py' -v
+      - name: Configure
+        run: >-
+          cmake -S . -B build -C cmake/DesktopBuild.cmake
+          -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PWD/dist"
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Install desktop library
+        run: cmake --install build --config Release --component desktop
+      - name: Test Linux capture, input, protocol, and installed library
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run -a -s '-screen 0 1024x768x24 -nolisten tcp' bash -e -c '
+            export XDG_SESSION_TYPE=x11
+            ctest --test-dir build -C Release --output-on-failure -R "^desktop_"
+            python test/desktop_smoke.py dist/lib/libvncdesktop.so
+          '
+      - name: Test Windows capture, input, protocol, and installed library
+        if: runner.os == 'Windows'
+        run: |
+          ctest --test-dir build -C Release --output-on-failure -R '^desktop_'
+          python test/desktop_smoke.py dist/bin/vncdesktop.dll
+      - name: Test macOS protocol and installed library
+        if: runner.os == 'macOS'
+        run: |
+          ctest --test-dir build -C Release --output-on-failure -R '^desktop_'
+          # Hosted runners cannot grant TCC consent. Always test ABI/protocol;
+          # exercise native capture too when permissions are already available.
+          status=0
+          python test/desktop_smoke.py dist/lib/libvncdesktop.dylib --allow-unavailable || status=$?
+          if [ "$status" -eq 77 ]; then
+            echo 'Native macOS capture skipped: runner lacks desktop permissions. ABI and protocol tests passed.' >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+      - name: Record artifact provenance and checksums
+        env:
+          ARTIFACT_PLATFORM: ${{ matrix.name }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: python utils/desktop_manifest.py dist
+      - name: Upload shared library, header, and usage guide
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: vncdesktop-${{ matrix.name }}-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-test-logs-${{ matrix.name }}-${{ github.sha }}
+          path: |
+            build/Testing/Temporary/
+            build/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: ignore

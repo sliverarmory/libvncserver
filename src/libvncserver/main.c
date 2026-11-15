@@ -37,6 +37,10 @@
 #include <fcntl.h>
 #endif
 
+#ifdef LIBVNCSERVER_HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
 #include <signal.h>
 #include <time.h>
 

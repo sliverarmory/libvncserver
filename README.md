@@ -148,6 +148,11 @@ Cutting a Release
 How to use
 ==========
 
+This fork also provides a [desktop-sharing shared library](doc/desktop-library.md)
+with an exported `int32_t start(int32_t port)` function. `start(1234)` shares the
+host desktop on `127.0.0.1:1234`; the **Desktop shared libraries** GitHub Actions
+workflow builds macOS, Windows, and Linux artifacts with usage instructions.
+
 See the [LibVNCServer API intro documentation](https://libvnc.github.io/doc/html/libvncserver_doc.html)
 for how to create a server instance, wire up input handlers and handle cursors.
 
