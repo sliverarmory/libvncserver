@@ -103,9 +103,12 @@ jobs:
       - name: Create or resume draft release
         shell: bash
         run: |
-          if gh release view "$RELEASE_TAG" --json isDraft,targetCommitish > existing-release.json 2>/dev/null; then
-            # Never modify an already-published release or another commit's draft.
-            jq -e --arg sha "$SOURCE_COMMIT" '.isDraft == true and .targetCommitish == $sha' existing-release.json
+          tag_object=$(gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" --jq '.object.sha')
+          tag_commit=$(gh api "repos/$GH_REPO/git/tags/$tag_object" --jq '.object | select(.type == "commit") | .sha')
+          test "$tag_commit" = "$SOURCE_COMMIT"
+          if gh release view "$RELEASE_TAG" --json isDraft,tagName > existing-release.json 2>/dev/null; then
+            # Never modify a published release; only resume this verified tag's draft.
+            jq -e --arg tag "$RELEASE_TAG" '.isDraft == true and .tagName == $tag' existing-release.json
           else
             gh release create "$RELEASE_TAG" --verify-tag --target "$SOURCE_COMMIT" \
               --draft --title "Desktop server $RELEASE_TAG" --notes-file release-notes.md
@@ -129,6 +132,9 @@ jobs:
         run: |
           gh release edit "$RELEASE_TAG" --draft=false --latest --notes-file release-notes.md
           gh release view "$RELEASE_TAG" --json isDraft,tagName,targetCommitish,url,assets > published-release.json
-          jq -e --arg tag "$RELEASE_TAG" --arg sha "$SOURCE_COMMIT" \
-            '.isDraft == false and .tagName == $tag and .targetCommitish == $sha and (.assets | length) == 7' published-release.json
+          jq -e --arg tag "$RELEASE_TAG" \
+            '.isDraft == false and .tagName == $tag and (.assets | length) == 7' published-release.json
+          tag_object=$(gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" --jq '.object.sha')
+          tag_commit=$(gh api "repos/$GH_REPO/git/tags/$tag_object" --jq '.object | select(.type == "commit") | .sha')
+          test "$tag_commit" = "$SOURCE_COMMIT"
           gh release view "$RELEASE_TAG" --json url --jq '.url' >> "$GITHUB_STEP_SUMMARY"
