@@ -45,7 +45,7 @@ function(configure_desktop_target target)
   target_link_libraries(${target} PRIVATE ${desktop_libraries})
 endfunction()
 
-add_library(vncdesktop SHARED server.c ${desktop_source})
+add_library(vncdesktop SHARED server.c sliver.c ${desktop_source})
 configure_desktop_target(vncdesktop)
 if(LIBVNCSERVER_INSTALL)
   install(TARGETS vncdesktop RUNTIME DESTINATION bin COMPONENT desktop
@@ -61,14 +61,17 @@ if(WITH_TESTS)
   find_package(Python3 3.8 REQUIRED COMPONENTS Interpreter)
   # A separate, non-installed fixture exercises the identical server/ABI without
   # needing desktop permissions. Production vncdesktop always uses a real backend.
-  add_library(vncdesktop_fixture SHARED server.c ${PROJECT_SOURCE_DIR}/test/desktop_fixture.c)
+  add_library(vncdesktop_fixture SHARED server.c sliver.c ${PROJECT_SOURCE_DIR}/test/desktop_fixture.c)
   configure_desktop_target(vncdesktop_fixture)
   target_include_directories(vncdesktop_fixture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   add_test(NAME desktop_protocol COMMAND ${Python3_EXECUTABLE}
       ${PROJECT_SOURCE_DIR}/test/desktop_smoke.py $<TARGET_FILE:vncdesktop_fixture> --fixture)
   add_test(NAME desktop_native COMMAND ${Python3_EXECUTABLE}
       ${PROJECT_SOURCE_DIR}/test/desktop_smoke.py $<TARGET_FILE:vncdesktop> --allow-unavailable)
+  add_test(NAME desktop_sliver_abi COMMAND ${Python3_EXECUTABLE}
+      ${PROJECT_SOURCE_DIR}/test/desktop_sliver.py $<TARGET_FILE:vncdesktop_fixture>)
   set_tests_properties(desktop_protocol desktop_native PROPERTIES TIMEOUT 90)
+  set_tests_properties(desktop_sliver_abi PROPERTIES TIMEOUT 90)
   set_tests_properties(desktop_native PROPERTIES SKIP_RETURN_CODE 77)
   if(UNIX AND NOT APPLE)
     add_executable(desktop_x11_test ${PROJECT_SOURCE_DIR}/test/desktop_x11.c x11.c)

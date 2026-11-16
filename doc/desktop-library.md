@@ -79,6 +79,7 @@ loader callback.
 
 `vnc_status()` returns the current/last worker error, including capture failures
 after startup. Zero means no error recorded; it is not a running-state indicator.
+Use `vnc_running()` to check whether the worker currently serves connections.
 Startup waits for the OS capture service, and shutdown waits for any in-flight
 capture and client I/O to finish. In particular, an unresponsive macOS capture
 service can delay these calls; callbacks are drained before allowing unload.
@@ -142,6 +143,30 @@ the core raw, RRE, CoRRE, Hextile, and Ultra encodings.
 Display size changes use the VNC desktop-resize extension. Clipboard, audio,
 and file transfer are not implemented. The server uses the VNC cursor, and
 releases injected keys/buttons when the client disconnects.
+
+## Sliver native extension
+
+The same shared library exports `VNCDesktopCommand` for a Sliver extension
+manifest with the top-level command name `vnc`. It accepts exactly these forms:
+
+```text
+vnc start --port 1234
+vnc status
+vnc stop
+```
+
+The port is a required decimal TCP port from 1 through 65535. The adapter
+parses Sliver's length-delimited argument buffer, calls the corresponding
+desktop API, and reports one result through Sliver's callback before returning.
+`vnc status` reports both current worker state and the last worker error;
+`vnc stop` joins the worker and closes the listener. Invalid commands or ports
+are rejected without starting a listener. Sliver's native loader does not use
+the export's C return value as command output.
+
+The listener remains on target loopback. To view it from an interactive Sliver
+session, forward a local port to `127.0.0.1:1234` on the target and connect a
+VNC viewer to the local forwarded port. Stop the server before replacing the
+loaded extension or ending access to the forwarded port.
 
 ## Build and validate locally
 

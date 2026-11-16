@@ -42,6 +42,24 @@ VNCDESKTOP_API int32_t VNCDESKTOP_CALL start(int32_t port);
 VNCDESKTOP_API void VNCDESKTOP_CALL vnc_stop(void);
 /* Current/last worker status, including asynchronous capture failures. */
 VNCDESKTOP_API int32_t VNCDESKTOP_CALL vnc_status(void);
+/* Whether the VNC worker is currently serving connections. */
+VNCDESKTOP_API int32_t VNCDESKTOP_CALL vnc_running(void);
+
+/* Sliver's native extension callback ABI. The callback must consume output
+ * synchronously; its buffer is only valid until the call returns. */
+#if defined(_WIN32)
+# define VNCDESKTOP_CALLBACK_CALL __stdcall
+#else
+# define VNCDESKTOP_CALLBACK_CALL
+#endif
+typedef int32_t (VNCDESKTOP_CALLBACK_CALL *vncdesktop_output_callback)(char *output,
+                                                                       int32_t length);
+/* Sliver entrypoint for "vnc start --port N", "vnc status", and "vnc stop".
+ * The argument buffer is length-delimited and need not be NUL-terminated.
+ * Emits exactly one synchronous callback message when callback is non-NULL. */
+VNCDESKTOP_API int32_t VNCDESKTOP_CALL VNCDesktopCommand(const char *arguments,
+                                                         uint32_t argument_length,
+                                                         vncdesktop_output_callback callback);
 
 #ifdef __cplusplus
 }
