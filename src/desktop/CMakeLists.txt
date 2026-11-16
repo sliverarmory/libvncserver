@@ -30,6 +30,12 @@ endif()
 
 # Embed the static core into a single loadable library in the DesktopBuild profile.
 set_target_properties(vncserver PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(VNCDESKTOP_LOADER_PROFILE)
+  if(BUILD_SHARED_LIBS)
+    message(FATAL_ERROR "The desktop loader profile requires a static vncserver core")
+  endif()
+  target_compile_definitions(vncserver PRIVATE VNCDESKTOP_EXPLICIT_DES_ONLY)
+endif()
 if(NOT BUILD_SHARED_LIBS)
   set_target_properties(vncserver PROPERTIES C_VISIBILITY_PRESET hidden)
 endif()
@@ -78,8 +84,15 @@ if(WITH_TESTS)
         ${PROJECT_SOURCE_DIR}/src/common/d3des.c
         ${PROJECT_SOURCE_DIR}/src/common/crypto_included.c)
     target_include_directories(desktop_des_schedule PRIVATE ${PROJECT_SOURCE_DIR}/src/common)
+    target_compile_definitions(desktop_des_schedule PRIVATE VNCDESKTOP_EXPLICIT_DES_ONLY)
     target_link_libraries(desktop_des_schedule PRIVATE Threads::Threads)
     add_test(NAME desktop_des_schedule COMMAND desktop_des_schedule)
+    add_executable(desktop_des_legacy ${PROJECT_SOURCE_DIR}/test/d3des_schedule.c
+        ${PROJECT_SOURCE_DIR}/src/common/d3des.c
+        ${PROJECT_SOURCE_DIR}/src/common/crypto_included.c)
+    target_include_directories(desktop_des_legacy PRIVATE ${PROJECT_SOURCE_DIR}/src/common)
+    target_link_libraries(desktop_des_legacy PRIVATE Threads::Threads)
+    add_test(NAME desktop_des_legacy COMMAND desktop_des_legacy)
   endif()
   if(UNIX AND NOT APPLE)
     add_executable(desktop_x11_test ${PROJECT_SOURCE_DIR}/test/desktop_x11.c x11.c)

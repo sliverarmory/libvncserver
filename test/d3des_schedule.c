@@ -25,9 +25,9 @@ static void *encrypt_concurrently(void *arg)
     unsigned char output[8];
     int round;
     for (round = 0; round < 100; round++) {
-        rfbDesKey(worker->key, EN0, schedule);
+        rfbDesKeyWithSchedule(worker->key, EN0, schedule);
         pthread_barrier_wait(worker->barrier);
-        rfbDes((unsigned char *)input, output, schedule);
+        rfbDesWithSchedule((unsigned char *)input, output, schedule);
         if (memcmp(output, worker->expected, sizeof(output)) != 0)
             worker->failed = 1;
         pthread_barrier_wait(worker->barrier);
@@ -54,11 +54,23 @@ int main(void)
         memcmp(restored, input, sizeof(restored)) != 0)
         return 2;
 
+#ifndef VNCDESKTOP_EXPLICIT_DES_ONLY
+    /* Compile and execute the original two-argument exports in a normal build. */
+    rfbDesKey((unsigned char *)key_one, EN0);
+    rfbDes((unsigned char *)input, encrypted);
+    if (memcmp(encrypted, expected_one, sizeof(encrypted)) != 0)
+        return 8;
+    rfbDesKey((unsigned char *)key_one, DE1);
+    rfbDes(encrypted, restored);
+    if (memcmp(restored, input, sizeof(restored)) != 0)
+        return 9;
+#endif
+
     memcpy(workers[0].key, key_one, sizeof(key_one));
     memcpy(workers[0].expected, expected_one, sizeof(expected_one));
     memcpy(workers[1].key, key_two, sizeof(key_two));
-    rfbDesKey(workers[1].key, EN0, schedule);
-    rfbDes((unsigned char *)input, workers[1].expected, schedule);
+    rfbDesKeyWithSchedule(workers[1].key, EN0, schedule);
+    rfbDesWithSchedule((unsigned char *)input, workers[1].expected, schedule);
     if (memcmp(workers[0].expected, workers[1].expected, sizeof(expected_one)) == 0)
         return 3;
 

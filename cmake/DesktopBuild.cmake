@@ -1,6 +1,7 @@
 # Reproducible standalone desktop library: embed the VNC core and use only OS
 # desktop libraries at runtime. Pass with cmake -C cmake/DesktopBuild.cmake.
 set(WITH_DESKTOP_SERVER ON CACHE BOOL "")
+set(VNCDESKTOP_LOADER_PROFILE ON CACHE BOOL "Build a single in-memory loadable desktop library")
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "")
 set(WITH_LIBVNCSERVER ON CACHE BOOL "")
 set(WITH_LIBVNCCLIENT OFF CACHE BOOL "")
