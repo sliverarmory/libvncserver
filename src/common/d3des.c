@@ -28,6 +28,7 @@
 
 #include "d3des.h"
 
+#ifndef VNCDESKTOP_EXPLICIT_DES_ONLY
 #if defined(__GNUC__)
 #define TLS __thread
 #elif defined(_MSC_VER)
@@ -35,13 +36,13 @@
 #else
 #define TLS
 #endif
+static TLS unsigned long KnL[32] = { 0L };
+#endif
 
 static void scrunch(unsigned char *, unsigned long *);
 static void unscrun(unsigned long *, unsigned char *);
 static void desfunc(unsigned long *, unsigned long *);
-static void cookey(unsigned long *);
-
-static TLS unsigned long KnL[32] = { 0L };
+static void cookey(unsigned long *, unsigned long *);
 /*
 static unsigned long KnR[32] = { 0L };
 static unsigned long Kn3[32] = { 0L };
@@ -79,8 +80,8 @@ static const unsigned char pc2[48] = {
 	40, 51, 30, 36, 46, 54, 29, 39, 50, 44, 32, 47,
 	43, 48, 38, 55, 33, 52, 45, 41, 49, 35, 28, 31 };
 
-void rfbDesKey(unsigned char *key,
-               int edf)
+void rfbDesKeyWithSchedule(unsigned char *key,
+                           int edf, unsigned long schedule[32])
 {
 	register int i, j, l, m, n;
 	unsigned char pc1m[56], pcr[56];
@@ -111,27 +112,16 @@ void rfbDesKey(unsigned char *key,
 			if( pcr[pc2[j+24]] ) kn[n] |= bigbyte[j];
 			}
 		}
-	cookey(kn);
+	cookey(kn, schedule);
 	return;
 	}
 
-static void rfbUseKey(register unsigned long *from)
-{
-	register unsigned long *to, *endp;
-
-	to = KnL, endp = &KnL[32];
-	while( to < endp ) *to++ = *from++;
-	return;
-	}
-
-
-static void cookey(register unsigned long *raw1)
+static void cookey(register unsigned long *raw1, unsigned long schedule[32])
 {
 	register unsigned long *cook, *raw0;
-	unsigned long dough[32];
 	register int i;
 
-	cook = dough;
+	cook = schedule;
 	for( i = 0; i < 16; i++, raw1++ ) {
 		raw0 = raw1++;
 		*cook	 = (*raw0 & 0x00fc0000L) << 6;
@@ -143,21 +133,32 @@ static void cookey(register unsigned long *raw1)
 		*cook	|= (*raw1 & 0x0003f000L) >> 4;
 		*cook++ |= (*raw1 & 0x0000003fL);
 		}
-	rfbUseKey(dough);
 	return;
 	}
 
 
-void rfbDes(unsigned char *inblock,
-            unsigned char *outblock)
+void rfbDesWithSchedule(unsigned char *inblock,
+                        unsigned char *outblock, unsigned long schedule[32])
 {
 	unsigned long work[2];
 
 	scrunch(inblock, work);
-	desfunc(work, KnL);
+	desfunc(work, schedule);
 	unscrun(work, outblock);
 	return;
 	}
+
+#ifndef VNCDESKTOP_EXPLICIT_DES_ONLY
+void rfbDesKey(unsigned char *key, int edf)
+{
+	rfbDesKeyWithSchedule(key, edf, KnL);
+}
+
+void rfbDes(unsigned char *inblock, unsigned char *outblock)
+{
+	rfbDesWithSchedule(inblock, outblock, KnL);
+}
+#endif
 
 static void scrunch(register unsigned char *outof,
                     register unsigned long *into)
