@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "backend.h"
+#include "server.h"
 #include <rfb/rfb.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +27,7 @@ static pthread_t worker;
 /* API calls serialize separately from the short worker-state critical sections. */
 static desktop_mutex api_mutex = DESKTOP_MUTEX_INIT;
 static desktop_mutex state_mutex = DESKTOP_MUTEX_INIT;
-static int joinable, ready, stopping;
+static int joinable, ready, stopping, running;
 static int32_t result;
 static int32_t requested_port;
 /* Only read/written on the worker thread. */
@@ -36,6 +37,7 @@ static void publish(int32_t status, int startup)
 {
     lock(&state_mutex);
     result = status;
+    running = startup && status == VNCDESKTOP_OK;
     if (startup) ready = 1;
 #ifdef _WIN32
     WakeAllConditionVariable(&changed);
@@ -233,7 +235,7 @@ int32_t VNCDESKTOP_CALL start(int32_t port)
     lock(&api_mutex);
     if (joinable) { unlock(&api_mutex); return VNCDESKTOP_ALREADY_RUNNING; }
     lock(&state_mutex);
-    ready = stopping = 0;
+    ready = stopping = running = 0;
     result = VNCDESKTOP_OK;
     requested_port = port;
 #ifdef _WIN32
@@ -277,8 +279,21 @@ void VNCDESKTOP_CALL vnc_stop(void)
 int32_t VNCDESKTOP_CALL vnc_status(void)
 {
     int32_t status;
-    lock(&state_mutex);
-    status = result;
-    unlock(&state_mutex);
+    desktop_state(&status);
     return status;
+}
+
+int32_t desktop_state(int32_t *last_status)
+{
+    int32_t active;
+    lock(&state_mutex);
+    if (last_status) *last_status = result;
+    active = running;
+    unlock(&state_mutex);
+    return active;
+}
+
+int32_t VNCDESKTOP_CALL vnc_running(void)
+{
+    return desktop_state(NULL);
 }
